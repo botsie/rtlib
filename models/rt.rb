@@ -3,9 +3,10 @@ require 'net/https'
 require 'singleton'
 require 'uri'
 require 'rmail'
+require 'text-table'
 require 'pp'
           
-DEBUG=true
+DEBUG=false
 
 
 
@@ -39,9 +40,8 @@ module RT
       login = "user=#{@user}&pass=#{@password}"
       headers = { 'Content-Type' => 'application/x-www-form-urlencoded' }
       resp, data = @http.post('/index.html', login, headers)
-      pp resp.response['set-cookie']
+      log resp.response['set-cookie']
       @cookie = resp.response['set-cookie'].split('; ')[0]
-      pp @cookie
     end
 
     public
@@ -62,10 +62,10 @@ module RT
 
     def tickets_where(condition)
       url = "/search/ticket?query=#{condition}&format=l"
-      tickets = Array.new
+      tickets = DocumentCollection.new
       
       get(url).split('--').each do |ticket_data|
-        tickets.push(Document.new(ticket_data))
+        tickets << Document.new(ticket_data)
       end
       return tickets
     end
@@ -80,10 +80,10 @@ module RT
       end
       id = id.gsub(/^ticket\//,"")
       url = "/ticket/#{id}/history?format=l"
-      history = Array.new
+      history = DocumentCollection.new
       
       get(url).split('--').each do |history_item_data|
-        history.push(Document.new(history_item_data))
+        history << Document.new(history_item_data)
       end
       return history
     end
@@ -107,6 +107,22 @@ module RT
         out[cleaned_key] = value
       end
       return out
+    end
+  end
+
+  class DocumentCollection < Array
+    def to_s
+      headers = self.first.keys
+      rows = Array.new
+      rows << headers
+      self.each do |record|
+        row = Array.new
+        headers.each do |header|
+          row << record[header]
+        end
+        rows << row
+      end
+      rows.to_table(:first_row_is_head => true)
     end
   end
   
@@ -224,7 +240,7 @@ module RT
         groups[current_group].each { |field| field.aggregate(result) }
       end
 
-      result_rows = Array.new
+      result_rows = DocumentCollection.new
       groups.values.each do |group|
         row = Hash.new
         group.each do |field|
