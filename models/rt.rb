@@ -4,6 +4,7 @@ require 'singleton'
 require 'uri'
 require 'rmail'
 require 'text-table'
+require 'date'
 require 'pp'
           
 DEBUG=false
@@ -137,12 +138,15 @@ module RT
       end
     end
 
-    delegate_to_db_hash :keys, :values, :has_key?
+    delegate_to_db_hash :keys, :values, :has_key?, :[], :[]=
     
-    def initialize(data)
-      # pp data, "--"
-      @data = data
-      @db = parse(data)
+    def initialize(data=nil)
+      if data
+        @data = data
+        @db = parse(data)
+      else
+        @db = Hash.new
+      end
     end
 
     def to_s
@@ -157,8 +161,8 @@ module RT
       return @db
     end
 
-    def [](key)
-      @db[key]
+    def <=>(other)
+      @db.values.join <=> other.values.join
     end
   end
 
@@ -181,9 +185,9 @@ module RT
       end
     end
 
-    aggregators :count, :sum
+    aggregators :count, :sum, :avg_days_since
     delegate_to_current_where_field :is, :is_not, :in, :not_in, :on, :is_not_on
-    delegate_to_current_where_field :less_than, :greater_than, :before, :after
+    delegate_to_current_where_field :less_than, :greater_than, :before, :after, :between
     
     def initialize(server)
       @where_fields = Hash.new
@@ -242,13 +246,18 @@ module RT
 
       result_rows = DocumentCollection.new
       groups.values.each do |group|
-        row = Hash.new
+        row = Document.new
         group.each do |field|
           row[field.name] = field.aggregated_value
         end
         result_rows << row
       end
-      return result_rows
+      return result_rows.sort
+    ensure
+      # clean up
+      @where_fields = Hash.new
+      @aggregated_fields = Array.new
+      @group_by = Array.new
     end
 
     def group_of(row)
@@ -287,13 +296,31 @@ module RT
       end
     end
 
+    def avg_days_since(row)
+      if @count
+        @count += 1
+      else
+        @count = 1
+      end
+
+      the_date = Date.parse(row[field_name])
+      now = Date.today
+      age = (now - the_date).to_i
+
+      if @aggregated_value
+        @aggregated_value = (((@aggregated_value * (@count - 1)) + age) / @count)
+      else
+        @aggregated_value = age
+      end
+    end
+
     def grouped_by(row)
       @aggregated_value = row[field_name]
     end
   end
 
   class WhereField
-    def self.array_comparators(*args)
+    def self.comparators(*args)
       args.each do |arg|
         define_method arg do |*values|
           add_condition arg, values
@@ -309,8 +336,7 @@ module RT
       end
     end
 
-    array_comparators :in, :not_in
-    unary_comparators :less_than, :greater_than
+    comparators :in, :not_in, :less_than, :greater_than
     alias :on :in
     alias :is_not_on :not_in
     alias :is :in

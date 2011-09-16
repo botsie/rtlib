@@ -1,3 +1,4 @@
+#!/usr/bin/env ruby
 require 'pp'
 require File.expand_path("../../models/rt.rb", __FILE__)
 
