@@ -15,63 +15,68 @@ class Dashboard
                           :user => RT_USERNAME,
                           :password => RT_PASSWORD,
                           :use_ssl => RT_USE_SSL )
-    @q = RT::Query.new(@rt)
   end
   
   def run(queue)
+    @queue = queue
+    
     puts hr, queue.center(80), hr
     puts "\nTicket Ownership"
-    puts owners queue
+    puts owners 
     
     puts "\nTicket Activity Summary"
-    puts summary queue
+    puts summary
 
     puts "\nTicket Aging"
-    puts aging queue
+    puts aging
+
+    puts "\nRequestors"
+    puts requestors
+
+    puts "\nRequestors Activity Summary"
+    puts requestors_summary
   end
 
-  def owners( queue )
-    @q.
+  def query_defaults
+    RT::Query.new(@rt).
+      where('Queue').is(@queue).
+      and('Status').in('new', 'open', 'stalled')
+  end
+
+  def owners
+    query_defaults.
       count('').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      group_by('Owner', 'Status')
-    @q.execute.to_s
+      group_by('Owner', 'Status').
+      execute.to_s
   end
 
-  def summary( queue )
-    @q.
+  def summary
+    query_defaults.
       count('').avg_days_since('Created').avg_days_since('LastUpdated').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      group_by('Owner')
-     @q.execute.to_s
+      group_by('Owner').
+      execute.to_s
   end
 
-  def aging( queue )
+  def aging
     last_week = (Date.today - 7).to_s
     last_month = (Date.today << 1).to_s
     last_quarter = (Date.today << 3).to_s
 
-    tickets_this_week = @q.count('').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      and('Created').after(last_week).execute
+    tickets_this_week = query_defaults.
+      count('').
+      where('Created').after(last_week).execute
 
-    tickets_this_month = @q.count('').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      and('Created').between(last_week, last_month).execute
+    tickets_this_month = query_defaults.
+      count('').
+      where('Created').between(last_week, last_month).execute
 
-    tickets_this_quarter = @q.count('').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      and('Created').between(last_month, last_quarter).execute
+    tickets_this_quarter = query_defaults.
+      count('').
+      where('Created').between(last_month, last_quarter).execute
 
-    tickets_before_this_quarter = @q.count('').
-      where('Queue').is(queue).
-      and('Status').in('new', 'open', 'stalled').
-      and('Created').before(last_quarter).execute
+    tickets_before_this_quarter = query_defaults.
+      count('').
+      where('Created').before(last_quarter).execute
 
     report = [
               [ "Age", "Count"],
@@ -81,6 +86,20 @@ class Dashboard
               [ "More than 1 quarter", tickets_before_this_quarter.first['count_']]
              ]
     report.to_table(:first_row_is_head => true)
+  end
+
+  def requestors
+    query_defaults.
+      count('').
+      group_by('Requestors').
+      execute.to_s
+  end
+
+  def requestors_summary
+    query_defaults.
+      count('').avg_days_since('Created').avg_days_since('LastUpdated').
+      group_by('Requestors').
+      execute.to_s
   end
 
   def hr
