@@ -31,7 +31,7 @@ module RT
       @http = Net::HTTP.new(@server, @port)
       @http.use_ssl = @use_ssl
       @http.verify_mode = OpenSSL::SSL::VERIFY_NONE
-      # @http.set_debug_output $stderr if DEBUG
+      @http.set_debug_output $stderr if DEBUG
       login
     end
 
@@ -46,6 +46,10 @@ module RT
     end
 
     public
+
+    def query
+      Query.new(self)
+    end
 
     def get(url)
 
@@ -73,7 +77,7 @@ module RT
 
     def history_of(ticket)
       if ticket.class == Document
-        id = ticket.id
+        id = ticket['id']
       elsif ticket.class == Hash
         id = ticket['id']
       elsif ticket.class == String
@@ -127,25 +131,14 @@ module RT
     end
   end
   
-  class Document
+  class Document < Hash
     include RTParser
-    
-    def self.delegate_to_db_hash(*methods)
-      methods.each do |method|
-        define_method method.to_s do |*args|
-          return @db.send method.to_sym, *args
-        end
-      end
-    end
-
-    delegate_to_db_hash :keys, :values, :has_key?, :[], :[]=
     
     def initialize(data=nil)
       if data
         @data = data
-        @db = parse(data)
-      else
-        @db = Hash.new
+        db = parse(data)
+        db.each_pair { |key, value| self[key] = value }
       end
     end
 
@@ -157,12 +150,8 @@ module RT
       return s
     end
 
-    def to_hash
-      return @db
-    end
-
     def <=>(other)
-      @db.values.join <=> other.values.join
+      self.values.join <=> other.values.join
     end
   end
 
