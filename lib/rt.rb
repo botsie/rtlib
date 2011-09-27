@@ -6,7 +6,9 @@ require 'rmail'
 require 'text-table'
 require 'date'
 require 'pp'
-          
+require 'yaml'
+require File.expand_path("../my_config.rb", __FILE__)
+
 DEBUG=false
 
 
@@ -19,12 +21,30 @@ module RT
 
   class Server
     
-    def initialize(params)
-      @server = params[:server]
-      @port = params[:port]
-      @user = params[:user]
-      @password = params[:password]
-      @use_ssl = params[:use_ssl]
+    def initialize(params = nil)
+      if params
+        @server = params[:server]
+        @port = params[:port]
+        @user = params[:user]
+        @password = params[:password]
+        @use_ssl = params[:use_ssl]
+      else
+        config = nil
+        rc_files = [
+                    File.expand_path("~/.rtlib.yml"),
+                    File.expand_path("/etc/rtlib/rtlib.yml")
+                   ]
+        rc_files.each do |file|
+          next unless File.exists? file
+          config = MyConfig.new(YAML.load_file(file))
+        end
+        raise "You have not provided an RT Server to connect to" unless config
+        @server = config.server
+        @port = config.port
+        @user = config.user
+        @password = config.password
+        @use_ssl = config.use_ssl
+      end
       
       @url_prefix = '/REST/1.0'
 
