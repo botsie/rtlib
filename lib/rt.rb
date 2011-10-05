@@ -121,10 +121,10 @@ module RT
   module RTParser
 
     def parse( data_string )
-
       data_string.gsub!(/RT\/\d+\.\d+\.\d+\s\d{3}\s.*\n\n/,"") # toss the HTTP response
       data_string.gsub!(/\n\n/,"\n") # remove double spacing
       data_string.gsub!(/^\n/,"") # RMail barfs on Messages that start with a newline
+      data_string.gsub!(/^[^:]+$/,"") # Remove any non-field lines
 
       data = RMail::Parser.read(data_string).header
       out = Hash.new
@@ -302,10 +302,14 @@ module RT
     end
 
     def count(row)
-      if @aggregated_value
-        @aggregated_value += 1
+      if row.empty?
+        @aggregated_value = 0 unless @aggregated_value
       else
-        @aggregated_value = 1
+        if @aggregated_value
+          @aggregated_value += 1
+        else
+          @aggregated_value = 1
+        end
       end
     end
 
