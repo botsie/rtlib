@@ -76,7 +76,11 @@ module RT
       log("http://#{@server}:#{@port}#{@url_prefix}#{url}")
 
       headers = { 'Cookie' => @cookie }
-      resp, data = @http.get2(URI.escape(@url_prefix + url), headers)
+      begin
+        resp, data = @http.get2(URI.escape(@url_prefix + url), headers)
+      rescue
+        data = String.new
+      end
       return data
     end
 
