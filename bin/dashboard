@@ -1,0 +1,103 @@
+#!/usr/bin/env ruby
+
+require File.expand_path('../../lib/rt.rb', __FILE__)
+
+class Dashboard
+  def initialize()
+    @rt = RT::Server.new
+  end
+  
+  def run(queue)
+    @queue = queue
+    
+    puts hr, queue.center(80), hr
+    puts "\nTicket Ownership"
+    puts owners 
+    
+    puts "\nTicket Activity Summary"
+    puts summary
+
+    puts "\nTicket Aging"
+    puts aging
+
+    puts "\nRequestors"
+    puts requestors
+
+    puts "\nRequestors Activity Summary"
+    puts requestors_summary
+  end
+
+  def query_defaults
+    RT::Query.new(@rt).
+      where('Queue').is(@queue).
+      and('Status').in('new', 'open', 'stalled')
+  end
+
+  def owners
+    query_defaults.
+      count('').
+      group_by('Owner', 'Status').
+      execute.to_s
+  end
+
+  def summary
+    query_defaults.
+      count('').avg_days_since('Created').avg_days_since('LastUpdated').
+      group_by('Owner').
+      execute.to_s
+  end
+
+  def aging
+    last_week = (Date.today - 7).to_s
+    last_month = (Date.today << 1).to_s
+    last_quarter = (Date.today << 3).to_s
+
+    tickets_this_week = query_defaults.
+      count('').
+      where('Created').after(last_week).execute
+
+    tickets_this_month = query_defaults.
+      count('').
+      where('Created').between(last_week, last_month).execute
+
+    tickets_this_quarter = query_defaults.
+      count('').
+      where('Created').between(last_month, last_quarter).execute
+
+    tickets_before_this_quarter = query_defaults.
+      count('').
+      where('Created').before(last_quarter).execute
+
+    report = [
+              [ "Age", "Count"],
+              [ "Less than 1 week", tickets_this_week.first['count_']],
+              [ "Less than 1 month", tickets_this_month.first['count_']],
+              [ "Less than 1 quarter", tickets_this_quarter.first['count_']],
+              [ "More than 1 quarter", tickets_before_this_quarter.first['count_']]
+             ]
+    report.to_table(:first_row_is_head => true)
+  end
+
+  def requestors
+    query_defaults.
+      count('').
+      group_by('Requestors').
+      execute.to_s
+  end
+
+  def requestors_summary
+    query_defaults.
+      count('').avg_days_since('Created').avg_days_since('LastUpdated').
+      group_by('Requestors').
+      execute.to_s
+  end
+
+  def hr
+    '-' * 80
+  end
+end
+
+dash = Dashboard.new
+dash.run(ARGV[0])
+
+

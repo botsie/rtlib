@@ -1,0 +1,23 @@
+#!/usr/bin/env ruby
+require 'pp'
+require File.expand_path("../../lib/rt.rb", __FILE__)
+
+
+
+class RTApp
+  def initialize
+    @rt = RT::Server.new
+    @q = RT::Query.new(@rt)
+  end
+  
+  def run(query)
+    res = eval "@q.#{query}.execute"
+    puts res.to_s
+  end
+end
+
+app = RTApp.new
+app.run ARGV[0]
+
+  
+

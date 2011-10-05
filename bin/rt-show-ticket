@@ -1,0 +1,22 @@
+#!/usr/bin/env ruby
+require 'pp'
+require File.expand_path("../../lib/rt.rb", __FILE__)
+
+
+
+class RTApp
+  
+  def initialize
+    @rt = RT::Server.new()
+  end
+  
+  def run(id)
+    puts @rt.ticket(id).to_hash.to_table
+  end
+end
+
+app = RTApp.new
+app.run ARGV[0]
+
+  
+
